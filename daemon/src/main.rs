@@ -40,6 +40,7 @@ use crate::shutdown::Shutdown;
 use crate::tts::spawn_tts_service;
 
 mod audio;
+mod audio_reactive;
 mod cli;
 mod device;
 mod events;
@@ -112,7 +113,7 @@ async fn main() -> Result<()> {
         }
 
         // Message is Cross-Platform now :)
-        let message = format!("Error Starting the GoXLR Utility:\r\n\r\n{e}");
+        let message = format!("Error Starting the GoXLR Above:\r\n\r\n{e}");
         platform::display_error(message);
 
         // Kill the process with an error to ensure the entire runtime is stopped
@@ -219,9 +220,9 @@ async fn run_utility() -> Result<()> {
     }
     if is_root() {
         if args.force_root {
-            error!("GoXLR Utility running as root, this is generally considered bad.");
+            error!("GoXLR Above running as root, this is generally considered bad.");
         } else {
-            error!("The GoXLR Utility Daemon is not designed to be run as root, and should run");
+            error!("The GoXLR Above Daemon is not designed to be run as root, and should run");
             error!("as the current active user. If you're having problems with permissions,");
             error!("please consult the 'Permissions' section of the README. Running as root");
             error!("*WILL* cause issues with the sampler, and may pose a security risk.");
