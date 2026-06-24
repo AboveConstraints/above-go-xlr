@@ -27,8 +27,10 @@ use goxlr_usb::animation::{AnimationMode, WaterFallDir};
 use goxlr_usb::buttonstate::{ButtonStates, Buttons};
 use goxlr_usb::channelstate::ChannelState;
 use goxlr_usb::channelstate::ChannelState::{Muted, Unmuted};
+use goxlr_usb::colouring::ColourTargets;
 use goxlr_usb::device::base::FullGoXLRDevice;
 use goxlr_usb::routing::{InputDevice, OutputDevice};
+use goxlr_profile_loader::components::colours::Colour;
 
 use crate::SettingsHandle;
 use crate::audio::{AudioFile, AudioHandler};
@@ -61,6 +63,10 @@ pub struct Device<'a> {
 
     last_sample_error: Option<String>,
     tap_tempo: VecDeque<Instant>,
+
+    // Above: reactive (music-driven) lighting. None = off (default), so this has
+    // zero effect on normal operation unless explicitly enabled.
+    reactive: Option<crate::audio_reactive::ReactiveController>,
 }
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -228,6 +234,8 @@ impl<'a> Device<'a> {
 
             last_sample_error: None,
             tap_tempo: VecDeque::with_capacity(4),
+
+            reactive: None,
         };
 
         device.apply_profile(None).await?;
@@ -451,6 +459,14 @@ impl<'a> Device<'a> {
     pub async fn update_state(&mut self) -> Result<bool> {
         let mut state_updated = false;
         let mut refresh_colour_map = false;
+
+        // Above: push a reactive-lighting frame if enabled. This is a transient
+        // overlay on top of the profile colours and is never persisted.
+        if self.reactive.is_some() {
+            if let Err(e) = self.apply_reactive_frame() {
+                warn!("Reactive lighting frame failed: {}", e);
+            }
+        }
 
         // Update any audio related states..
         if let Some(audio_handler) = &mut self.audio_handler {
@@ -2101,6 +2117,9 @@ impl<'a> Device<'a> {
                 self.update_button_states()?;
                 self.set_all_fader_display_from_profile()?;
             }
+            GoXLRCommand::SetReactiveLighting(enabled) => {
+                self.set_reactive_lighting(enabled).await?;
+            }
             GoXLRCommand::SetFaderDisplayStyle(fader, display) => {
                 self.profile.set_fader_display(fader, display);
                 self.set_fader_display_from_profile(fader)?;
@@ -3635,6 +3654,66 @@ impl<'a> Device<'a> {
         } else {
             let mut map: [u8; 328] = [0; 328];
             map.copy_from_slice(&colour_map[0..328]);
+            self.goxlr.set_button_colours(map)?;
+        }
+
+        Ok(())
+    }
+
+    // Above: reactive lighting ----------------------------------------------
+
+    /// Enable/disable music-reactive lighting. Spawns/stops a self-contained
+    /// audio-capture controller. On disable, the profile's colours are restored.
+    async fn set_reactive_lighting(&mut self, enabled: bool) -> Result<()> {
+        if enabled {
+            if self.reactive.is_none() {
+                info!("Enabling reactive lighting");
+                self.reactive = Some(crate::audio_reactive::ReactiveController::start(
+                    crate::audio_reactive::ReactiveConfig::default(),
+                ));
+            }
+        } else if self.reactive.take().is_some() {
+            info!("Disabling reactive lighting; restoring profile colours");
+            self.load_colour_map().await?;
+            self.update_button_states()?;
+        }
+        Ok(())
+    }
+
+    /// Push a single reactive frame: overlay the current audio intensity onto the
+    /// accent (LogoX) colour without touching the saved profile. Builds the
+    /// profile's colour map, overrides only the accent bytes, and sends it.
+    fn apply_reactive_frame(&mut self) -> Result<()> {
+        let intensity = match &self.reactive {
+            Some(controller) => controller.intensity() as f32,
+            None => return Ok(()),
+        };
+
+        let use_1_3_40_format = self.device_supports_animations();
+        let blank_mute = self.is_device_mini();
+        let mut colour_array = self.profile.get_colour_map(use_1_3_40_format, blank_mute);
+
+        // Brand red (#B03636), brightness-scaled by intensity.
+        let scaled = |c: f32| (c * intensity).clamp(0.0, 255.0) as u8;
+        let colour = Colour::fromrgb(&format!(
+            "{:02X}{:02X}{:02X}",
+            scaled(176.0),
+            scaled(54.0),
+            scaled(54.0)
+        ))
+        .map_err(|e| anyhow::anyhow!("Invalid reactive colour: {:?}", e))?;
+        let bytes = colour.to_reverse_bytes();
+
+        for i in 0..ColourTargets::LogoX.get_colour_count() {
+            let pos = ColourTargets::LogoX.position(i, use_1_3_40_format);
+            colour_array[pos..pos + 4].copy_from_slice(&bytes);
+        }
+
+        if use_1_3_40_format {
+            self.goxlr.set_button_colours_1_3_40(colour_array)?;
+        } else {
+            let mut map: [u8; 328] = [0; 328];
+            map.copy_from_slice(&colour_array[0..328]);
             self.goxlr.set_button_colours(map)?;
         }
 

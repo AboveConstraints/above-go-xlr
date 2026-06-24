@@ -16,7 +16,14 @@
 //!
 //! Everything is std-only (no extra deps) so it always compiles.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
+
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use goxlr_audio::AtomicF64;
+use log::{debug, info, warn};
 
 /// Tunable parameters for the analyser. Defaults are a reasonable starting
 /// point for music; expose these in the UI later for taste.
@@ -200,6 +207,128 @@ fn time_to_coeff(time: Duration, sample_rate: f32) -> f32 {
 
 fn dur_to_samples(time: Duration, sample_rate: f32) -> u32 {
     (time.as_secs_f32() * sample_rate).round() as u32
+}
+
+/// Owns a background system-audio (loopback) capture that continuously feeds the
+/// [`ReactiveAnalyser`] and publishes the latest `intensity` (0.0..=1.0) via a
+/// shared atomic the daemon reads each device tick.
+///
+/// Fully self-contained: creating one starts capture, dropping one stops it. If
+/// the platform can't open a loopback stream (or it's not f32), it logs and the
+/// intensity simply stays at 0.0 — the rest of the daemon is unaffected.
+pub struct ReactiveController {
+    intensity: Arc<AtomicF64>,
+    stop: Arc<AtomicBool>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl ReactiveController {
+    pub fn start(config: ReactiveConfig) -> Self {
+        let intensity = Arc::new(AtomicF64::new(0.0));
+        let stop = Arc::new(AtomicBool::new(false));
+
+        let thread_intensity = intensity.clone();
+        let thread_stop = stop.clone();
+        let handle = thread::Builder::new()
+            .name("reactive-capture".to_string())
+            .spawn(move || run_capture(config, thread_intensity, thread_stop))
+            .ok();
+
+        if handle.is_none() {
+            warn!("Reactive lighting: failed to spawn capture thread");
+        }
+
+        Self {
+            intensity,
+            stop,
+            handle,
+        }
+    }
+
+    /// Latest smoothed intensity, 0.0..=1.0.
+    pub fn intensity(&self) -> f64 {
+        self.intensity.load(Ordering::Relaxed)
+    }
+}
+
+impl Drop for ReactiveController {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+        debug!("Reactive lighting: capture stopped");
+    }
+}
+
+/// Capture-thread body. Opens a WASAPI loopback stream on the default output
+/// device, feeds blocks into the analyser, and writes intensity to the atomic.
+fn run_capture(config: ReactiveConfig, intensity: Arc<AtomicF64>, stop: Arc<AtomicBool>) {
+    let host = cpal::default_host();
+    let Some(device) = host.default_output_device() else {
+        warn!("Reactive lighting: no default output device for loopback capture");
+        return;
+    };
+
+    let stream_config = match device.default_output_config() {
+        Ok(c) => c,
+        Err(e) => {
+            warn!("Reactive lighting: couldn't get output config: {e}");
+            return;
+        }
+    };
+
+    // We only handle f32 here (the common Windows shared-mode format). Anything
+    // else simply no-ops rather than risking bad audio handling.
+    if stream_config.sample_format() != cpal::SampleFormat::F32 {
+        warn!(
+            "Reactive lighting: output format {:?} unsupported (need f32); disabling",
+            stream_config.sample_format()
+        );
+        return;
+    }
+
+    let channels = stream_config.channels() as usize;
+    let sample_rate = stream_config.sample_rate().0;
+    let mut analyser = ReactiveAnalyser::new(sample_rate, config);
+    let cb_intensity = intensity.clone();
+
+    let stream = device.build_input_stream(
+        &stream_config.into(),
+        move |data: &[f32], _: &cpal::InputCallbackInfo| {
+            let mono = downmix_to_mono(data, channels);
+            analyser.push(&mono);
+            cb_intensity.store(analyser.intensity() as f64, Ordering::Relaxed);
+        },
+        move |err| warn!("Reactive lighting: capture stream error: {err}"),
+        None,
+    );
+
+    let stream = match stream {
+        Ok(s) => s,
+        Err(e) => {
+            warn!("Reactive lighting: couldn't open loopback stream: {e}");
+            return;
+        }
+    };
+
+    if let Err(e) = stream.play() {
+        warn!("Reactive lighting: couldn't start loopback stream: {e}");
+        return;
+    }
+
+    info!(
+        "Reactive lighting: capturing loopback @ {} Hz, {} ch",
+        sample_rate, channels
+    );
+
+    // Keep the stream alive on this thread until asked to stop.
+    while !stop.load(Ordering::Relaxed) {
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    // Reset intensity so any final frame settles to dark.
+    intensity.store(0.0, Ordering::Relaxed);
 }
 
 #[cfg(test)]

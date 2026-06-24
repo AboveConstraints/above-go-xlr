@@ -39,6 +39,9 @@ lazy_static = { workspace = true }
 fancy-regex = { workspace = true }
 which = { workspace = true }
 
+# Above: reactive lighting audio capture
+cpal = "0.16"
+
 # Log File Handline
 simplelog = "0.12.2"
 file-rotate = "0.8.0"

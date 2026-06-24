@@ -2010,6 +2010,7 @@ dependencies = [
  "clap_complete",
  "core-foundation 0.10.1",
  "coreaudio-sys",
+ "cpal",
  "directories",
  "dispatch2",
  "dunce",

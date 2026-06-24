@@ -190,6 +190,10 @@ pub enum GoXLRCommand {
 
     SetGlobalColour(String),
 
+    // Above: reactive (music-driven) lighting. Software toggle only; transient,
+    // never persisted to the profile.
+    SetReactiveLighting(bool),
+
     SetFaderDisplayStyle(FaderName, FaderDisplayStyle),
     SetFaderColours(FaderName, String, String),
     SetAllFaderColours(String, String),

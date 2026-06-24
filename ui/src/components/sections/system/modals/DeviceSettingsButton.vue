@@ -47,6 +47,10 @@
                         :enabled="get_locked_faders()" @change="set_locked_faders"
                         :description="$t('message.system.device.lockFadersAccessibility')"/>
 
+        <BooleanSetting label="Reactive Lighting" :enabled="reactive_enabled"
+                        @change="set_reactive_lighting"
+                        description="Pulse the accent lighting in time with system audio (Above)."/>
+
       </div>
 
     </AccessibleModal>
@@ -87,9 +91,22 @@ export default {
     AccessibleModal
   },
 
+  data() {
+    return {
+      // Reactive lighting is a transient, software-only toggle (not in DaemonStatus),
+      // so its state is tracked locally here.
+      reactive_enabled: false,
+    };
+  },
+
   methods: {
     firmwareSupportsMix2,
     isDeviceMini,
+
+    set_reactive_lighting(value) {
+      this.reactive_enabled = value;
+      websocket.send_command(store.getActiveSerial(), {"SetReactiveLighting": value});
+    },
     getHold() {
       return store.getActiveDevice().settings.mute_hold_duration;
     },
