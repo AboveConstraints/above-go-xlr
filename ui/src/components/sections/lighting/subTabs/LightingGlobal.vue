@@ -29,12 +29,21 @@ export default {
       mod1Value: 0,
       mod2Value: 0,
       lock_updates: false,
+
+      // Above: reactive lighting is a transient, software-only toggle (not in
+      // DaemonStatus), so its state is tracked locally.
+      reactive_enabled: false,
     }
   },
 
   methods: {
     getNodes() {
       return [];
+    },
+
+    toggleReactive() {
+      this.reactive_enabled = !this.reactive_enabled;
+      websocket.send_command(store.getActiveSerial(), {"SetReactiveLighting": this.reactive_enabled});
     },
 
     getAreaOptions() {
@@ -283,6 +292,15 @@ export default {
           </div>
         </div>
       </GroupContainer>
+
+      <GroupContainer title="Reactive Lighting">
+        <div class="reactive">
+          <button class="reactive-toggle" :class="{ active: reactive_enabled }" @click="toggleReactive">
+            {{ reactive_enabled ? 'On' : 'Off' }}
+          </button>
+          <div class="reactive-desc">Pulse the accent lighting in time with system audio (Above).</div>
+        </div>
+      </GroupContainer>
     </ContentContainer>
   </CenteredContainer>
 </template>
@@ -306,6 +324,33 @@ export default {
 
 .modValue.disabled {
   color: var(--ag-accent-dim);
+}
+
+.reactive {
+  text-align: center;
+  padding: 6px 8px 2px;
+}
+
+.reactive-toggle {
+  border: none;
+  width: 100%;
+  font-size: 13px;
+  background-color: var(--ag-accent-dim);
+  color: var(--ag-text);
+  font-family: var(--ag-font);
+  padding: 8px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.reactive-toggle.active {
+  background-color: var(--ag-accent);
+}
+
+.reactive-desc {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--ag-text-dim);
 }
 
 .waterfall {
