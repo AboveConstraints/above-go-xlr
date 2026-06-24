@@ -27,6 +27,7 @@
 
         <!-- System options (each opens its own modal) -->
         <div class="rail-group rail-system">
+          <SoundboardButton />
           <MicSetupButton />
           <SwitchDeviceButton v-if="store.getDeviceCount() > 1" />
           <FirmwareUpdateButton />
@@ -68,6 +69,7 @@ import { isDeviceMini } from "@/util/util";
 
 // System option buttons (each wraps its own trigger + modal)
 import MicSetupButton from "@/components/sections/system/modals/MicSetupButton.vue";
+import SoundboardButton from "@/components/sections/system/modals/SoundboardButton.vue";
 import SwitchDeviceButton from "@/components/sections/system/modals/SwitchDeviceButton.vue";
 import FirmwareUpdateButton from "@/components/sections/system/modals/FirmwareUpdateButton.vue";
 import PowerButton from "@/components/sections/system/modals/PowerButton.vue";
@@ -81,7 +83,7 @@ export default {
   name: "ProfileSidebar",
   components: {
     AccessibleModal, FontAwesomeLayers,
-    MicSetupButton, SwitchDeviceButton, FirmwareUpdateButton, PowerButton,
+    SoundboardButton, MicSetupButton, SwitchDeviceButton, FirmwareUpdateButton, PowerButton,
     DeviceSettingsButton, AboutButton, LicenseButton, HelpButton, SettingsButton,
   },
 

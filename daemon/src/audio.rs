@@ -656,3 +656,30 @@ pub struct CalculationResult {
     pub button: SampleButtons,
     pub gain: f64,
 }
+
+// Above: soundboard — play an arbitrary audio file through the GoXLR "Sample"
+// output device. Standalone (no AudioHandler), so it works on the Mini too.
+pub fn play_soundboard_file(file: PathBuf) -> Result<()> {
+    if !file.is_file() {
+        bail!("Soundboard file not found: {:?}", file);
+    }
+
+    let device = goxlr_audio::get_audio_outputs().into_iter().find(|name| {
+        let lname = name.to_lowercase();
+        lname.contains("sample") && lname.contains("goxlr")
+    });
+
+    let Some(device) = device else {
+        bail!("Soundboard: GoXLR 'Sample' output device not found");
+    };
+
+    info!("Soundboard: playing {:?} -> {}", file, device);
+    let mut player = Player::new(&file, Some(device), None, None, None, None)?;
+    thread::spawn(move || {
+        if let Err(e) = player.play() {
+            warn!("Soundboard playback error: {}", e);
+        }
+    });
+
+    Ok(())
+}

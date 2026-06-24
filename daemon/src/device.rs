@@ -2140,6 +2140,10 @@ impl<'a> Device<'a> {
             GoXLRCommand::SetReactiveConfig(settings) => {
                 self.set_reactive_config(settings);
             }
+            GoXLRCommand::SoundboardPlay(name) => {
+                let dir = self.settings.get_samples_directory().await;
+                crate::audio::play_soundboard_file(dir.join(&name))?;
+            }
             GoXLRCommand::SetFaderDisplayStyle(fader, display) => {
                 self.profile.set_fader_display(fader, display);
                 self.set_fader_display_from_profile(fader)?;

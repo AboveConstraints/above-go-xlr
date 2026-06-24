@@ -1,4 +1,4 @@
-[workspace]
+﻿[workspace]
 resolver = "2"
 
 members = [
@@ -16,10 +16,10 @@ members = [
 ]
 
 [workspace.package]
-version = "1.2.9"
+version = "1.2.10"
 edition = "2024"
 
-authors = ["Nathan Adams <dinnerbone@dinnerbone.com>", "Craig McLure <craig@mclure.net>", "Lars Mühlbauer <lm41@dismail.de>"]
+authors = ["Nathan Adams <dinnerbone@dinnerbone.com>", "Craig McLure <craig@mclure.net>", "Lars MÃ¼hlbauer <lm41@dismail.de>"]
 license = "MIT"
 
 repository = "https://github.com/GoXLR-on-Linux/GoXLR-Utility"

@@ -196,6 +196,10 @@ pub enum GoXLRCommand {
     SetReactiveMode(ReactiveMode),
     SetReactiveConfig(ReactiveSettings),
 
+    // Above: soundboard — play an audio file (from the samples folder) through
+    // the GoXLR Sample channel. Works on the Mini too.
+    SoundboardPlay(String),
+
     SetFaderDisplayStyle(FaderName, FaderDisplayStyle),
     SetFaderColours(FaderName, String, String),
     SetAllFaderColours(String, String),
