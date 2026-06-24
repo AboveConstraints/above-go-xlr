@@ -898,6 +898,20 @@ pub enum WaterfallDirection {
     Off,
 }
 
+// Above: music-reactive lighting styles (selectable in the Lighting tab).
+#[derive(Default, Debug, Copy, Clone, EnumIter, Display, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(ValueEnum))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum ReactiveMode {
+    /// Each fader strip = one frequency band (bass → treble).
+    #[default]
+    Spectrum,
+    /// All strips flash together on the beat.
+    Pulse,
+    /// All strips brightness rises and falls with the overall volume.
+    Level,
+}
+
 #[derive(Default, Debug, Copy, Clone, EnumIter, Display, PartialEq, Eq)]
 #[cfg_attr(feature = "clap", derive(ValueEnum))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

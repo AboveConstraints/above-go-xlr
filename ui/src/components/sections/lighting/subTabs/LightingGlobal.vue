@@ -33,6 +33,7 @@ export default {
       // Above: reactive lighting is a transient, software-only toggle (not in
       // DaemonStatus), so its state is tracked locally.
       reactive_enabled: false,
+      reactive_mode: 'Spectrum',
     }
   },
 
@@ -44,6 +45,19 @@ export default {
     toggleReactive() {
       this.reactive_enabled = !this.reactive_enabled;
       websocket.send_command(store.getActiveSerial(), {"SetReactiveLighting": this.reactive_enabled});
+    },
+
+    getReactiveModes() {
+      return [
+        { id: 'Spectrum', label: 'Spectrum' },
+        { id: 'Pulse', label: 'Pulse' },
+        { id: 'Level', label: 'Level' },
+      ];
+    },
+
+    setReactiveMode(mode) {
+      this.reactive_mode = mode;
+      websocket.send_command(store.getActiveSerial(), {"SetReactiveMode": mode});
     },
 
     getAreaOptions() {
@@ -298,8 +312,11 @@ export default {
           <button class="reactive-toggle" :class="{ active: reactive_enabled }" @click="toggleReactive">
             {{ reactive_enabled ? 'On' : 'Off' }}
           </button>
-          <div class="reactive-desc">Pulse the accent lighting in time with system audio (Above).</div>
+          <div class="reactive-desc">Make the lights react to system audio (Above).</div>
         </div>
+        <RadioSelection v-if="reactive_enabled" title="Mode" group="reactive_mode"
+                        :options="getReactiveModes()" :selected="reactive_mode"
+                        @selection-changed="setReactiveMode"/>
       </GroupContainer>
     </ContentContainer>
   </CenteredContainer>

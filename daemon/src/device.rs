@@ -67,6 +67,7 @@ pub struct Device<'a> {
     // Above: reactive (music-driven) lighting. None = off (default), so this has
     // zero effect on normal operation unless explicitly enabled.
     reactive: Option<crate::audio_reactive::ReactiveController>,
+    reactive_mode: goxlr_types::ReactiveMode,
 }
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -236,6 +237,7 @@ impl<'a> Device<'a> {
             tap_tempo: VecDeque::with_capacity(4),
 
             reactive: None,
+            reactive_mode: goxlr_types::ReactiveMode::default(),
         };
 
         device.apply_profile(None).await?;
@@ -456,17 +458,19 @@ impl<'a> Device<'a> {
         &self.mic_profile
     }
 
+    /// Above: dedicated reactive-lighting tick, driven by its own fast timer in
+    /// the worker (decoupled from the slower device poll in `update_state`, which
+    /// only runs a few times per second). No-op unless reactive is enabled.
+    pub fn reactive_tick(&mut self) -> Result<()> {
+        if self.reactive.is_some() {
+            self.apply_reactive_frame()?;
+        }
+        Ok(())
+    }
+
     pub async fn update_state(&mut self) -> Result<bool> {
         let mut state_updated = false;
         let mut refresh_colour_map = false;
-
-        // Above: push a reactive-lighting frame if enabled. This is a transient
-        // overlay on top of the profile colours and is never persisted.
-        if self.reactive.is_some() {
-            if let Err(e) = self.apply_reactive_frame() {
-                warn!("Reactive lighting frame failed: {}", e);
-            }
-        }
 
         // Update any audio related states..
         if let Some(audio_handler) = &mut self.audio_handler {
@@ -2120,6 +2124,9 @@ impl<'a> Device<'a> {
             GoXLRCommand::SetReactiveLighting(enabled) => {
                 self.set_reactive_lighting(enabled).await?;
             }
+            GoXLRCommand::SetReactiveMode(mode) => {
+                self.reactive_mode = mode;
+            }
             GoXLRCommand::SetFaderDisplayStyle(fader, display) => {
                 self.profile.set_fader_display(fader, display);
                 self.set_fader_display_from_profile(fader)?;
@@ -3684,8 +3691,12 @@ impl<'a> Device<'a> {
     /// accent (LogoX) colour without touching the saved profile. Builds the
     /// profile's colour map, overrides only the accent bytes, and sends it.
     fn apply_reactive_frame(&mut self) -> Result<()> {
-        let intensity = match &self.reactive {
-            Some(controller) => controller.intensity() as f32,
+        let (intensity, bands, flash) = match &self.reactive {
+            Some(controller) => (
+                controller.intensity() as f32,
+                controller.bands(),
+                controller.flash(),
+            ),
             None => return Ok(()),
         };
 
@@ -3693,21 +3704,60 @@ impl<'a> Device<'a> {
         let blank_mute = self.is_device_mini();
         let mut colour_array = self.profile.get_colour_map(use_1_3_40_format, blank_mute);
 
-        // Brand red (#B03636), brightness-scaled by intensity.
-        let scaled = |c: f32| (c * intensity).clamp(0.0, 255.0) as u8;
-        let colour = Colour::fromrgb(&format!(
-            "{:02X}{:02X}{:02X}",
-            scaled(176.0),
-            scaled(54.0),
-            scaled(54.0)
-        ))
-        .map_err(|e| anyhow::anyhow!("Invalid reactive colour: {:?}", e))?;
-        let bytes = colour.to_reverse_bytes();
+        // Per-band hues for Spectrum mode (bass → treble).
+        let band_colours: [(f32, f32, f32); 4] = [
+            (255.0, 30.0, 30.0),   // bass     — red
+            (255.0, 90.0, 20.0),   // low-mid  — orange-red
+            (235.0, 30.0, 90.0),   // high-mid — magenta-red
+            (255.0, 130.0, 120.0), // treble   — light red
+        ];
+        const BRAND_RED: (f32, f32, f32) = (220.0, 40.0, 40.0);
+        let fader_targets = [
+            ColourTargets::FadeMeter1,
+            ColourTargets::FadeMeter2,
+            ColourTargets::FadeMeter3,
+            ColourTargets::FadeMeter4,
+        ];
 
-        for i in 0..ColourTargets::LogoX.get_colour_count() {
-            let pos = ColourTargets::LogoX.position(i, use_1_3_40_format);
-            colour_array[pos..pos + 4].copy_from_slice(&bytes);
+        let write = |arr: &mut [u8], target: ColourTargets, bytes: &[u8; 4]| {
+            for i in 0..target.get_colour_count() {
+                let pos = target.position(i, use_1_3_40_format);
+                arr[pos..pos + 4].copy_from_slice(bytes);
+            }
+        };
+
+        let make = |level: f32, floor: f32, (r, g, b): (f32, f32, f32)| -> Result<[u8; 4]> {
+            let brightness = (floor + (1.0 - floor) * level.powf(1.5)).clamp(0.0, 1.0);
+            let colour = Colour::fromrgb(&format!(
+                "{:02X}{:02X}{:02X}",
+                (r * brightness) as u8,
+                (g * brightness) as u8,
+                (b * brightness) as u8
+            ))
+            .map_err(|e| anyhow::anyhow!("Invalid reactive colour: {:?}", e))?;
+            Ok(colour.to_reverse_bytes())
+        };
+
+        let peak = bands.iter().copied().fold(0.0_f32, f32::max).max(intensity);
+
+        // Per-fader level + colour depends on the selected mode.
+        for (idx, target) in fader_targets.into_iter().enumerate() {
+            let (level, floor, colour) = match self.reactive_mode {
+                goxlr_types::ReactiveMode::Spectrum => (bands[idx], 0.05, band_colours[idx]),
+                goxlr_types::ReactiveMode::Pulse => (flash, 0.0, BRAND_RED),
+                goxlr_types::ReactiveMode::Level => (peak, 0.05, BRAND_RED),
+            };
+            let bytes = make(level, floor, colour)?;
+            write(&mut colour_array, target, &bytes);
         }
+
+        // Accent (LogoX) follows the loudest band / flash in brand red.
+        let accent_level = match self.reactive_mode {
+            goxlr_types::ReactiveMode::Pulse => flash,
+            _ => peak,
+        };
+        let accent_bytes = make(accent_level, 0.05, BRAND_RED)?;
+        write(&mut colour_array, ColourTargets::LogoX, &accent_bytes);
 
         if use_1_3_40_format {
             self.goxlr.set_button_colours_1_3_40(colour_array)?;

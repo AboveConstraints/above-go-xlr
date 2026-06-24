@@ -106,6 +106,12 @@ pub async fn spawn_usb_handler(
     let update_sleep = sleep(update_duration);
     tokio::pin!(update_sleep);
 
+    // Above: dedicated fast timer for reactive lighting, decoupled from the
+    // slower state poll so the LEDs update smoothly (~30fps).
+    let reactive_duration = Duration::from_millis(33);
+    let reactive_sleep = sleep(reactive_duration);
+    tokio::pin!(reactive_sleep);
+
     // Timer for checking whether the UI App has appeared
     let mut app_check: Option<String> = None;
     get_app_path(&mut app_check);
@@ -301,6 +307,16 @@ pub async fn spawn_usb_handler(
                     }
                 }
                 update_sleep.as_mut().reset(tokio::time::Instant::now() + update_duration);
+            },
+            () = &mut reactive_sleep => {
+                // Above: push a reactive-lighting frame for any device that has it
+                // enabled. Cheap no-op otherwise.
+                for device in devices.values_mut() {
+                    if let Err(e) = device.reactive_tick() {
+                        warn!("Reactive lighting tick failed: {}", e);
+                    }
+                }
+                reactive_sleep.as_mut().reset(tokio::time::Instant::now() + reactive_duration);
             },
             () = &mut app_sleep => {
                 if get_app_path(&mut app_check) {
