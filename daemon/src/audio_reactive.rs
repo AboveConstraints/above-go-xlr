@@ -58,6 +58,21 @@ impl Default for ReactiveConfig {
     }
 }
 
+impl ReactiveConfig {
+    /// Build a config from a 0..=100 "speed" knob: higher = snappier (shorter
+    /// attack/release), lower = smoother.
+    pub fn with_speed(speed: u8) -> Self {
+        let t = (speed.min(100) as f32) / 100.0;
+        let attack_ms = 20.0 - 17.0 * t; // 20ms (smooth) → 3ms (snappy)
+        let release_ms = 400.0 - 340.0 * t; // 400ms → 60ms
+        Self {
+            attack: Duration::from_millis(attack_ms as u64),
+            release: Duration::from_millis(release_ms as u64),
+            ..Default::default()
+        }
+    }
+}
+
 /// Number of frequency bands (one per fader strip).
 pub const NUM_BANDS: usize = 4;
 
@@ -326,7 +341,8 @@ pub struct ReactiveController {
 }
 
 impl ReactiveController {
-    pub fn start(config: ReactiveConfig) -> Self {
+    /// `source` is a channel keyword ("System", "Game", ...) or "Default".
+    pub fn start(config: ReactiveConfig, source: String) -> Self {
         let intensity = Arc::new(AtomicF64::new(0.0));
         let bands: Arc<[AtomicF64; NUM_BANDS]> =
             Arc::new(std::array::from_fn(|_| AtomicF64::new(0.0)));
@@ -340,7 +356,14 @@ impl ReactiveController {
         let handle = thread::Builder::new()
             .name("reactive-capture".to_string())
             .spawn(move || {
-                run_capture(config, thread_intensity, thread_bands, thread_flash, thread_stop)
+                run_capture(
+                    config,
+                    source,
+                    thread_intensity,
+                    thread_bands,
+                    thread_flash,
+                    thread_stop,
+                )
             })
             .ok();
 
@@ -383,18 +406,44 @@ impl Drop for ReactiveController {
     }
 }
 
-/// Capture-thread body. Opens a WASAPI loopback stream on the default output
+/// Pick the output device to loopback-capture. For a GoXLR channel keyword we
+/// match an output device whose name contains both the keyword and "goxlr"
+/// (e.g. "System (2- TC-HELICON GoXLR Mini)"). Falls back to the default output.
+fn find_capture_device(host: &cpal::Host, source: &str) -> Option<cpal::Device> {
+    let key = source.to_lowercase();
+    if key != "default" {
+        if let Ok(devices) = host.output_devices() {
+            for device in devices {
+                if let Ok(name) = device.name() {
+                    let lname = name.to_lowercase();
+                    if lname.contains(&key) && lname.contains("goxlr") {
+                        info!("Reactive lighting: capturing source '{}' ({})", source, name);
+                        return Some(device);
+                    }
+                }
+            }
+        }
+        warn!(
+            "Reactive lighting: source '{}' not found, using default output",
+            source
+        );
+    }
+    host.default_output_device()
+}
+
+/// Capture-thread body. Opens a WASAPI loopback stream on the chosen output
 /// device, feeds blocks into the analyser, and writes intensity to the atomic.
 fn run_capture(
     config: ReactiveConfig,
+    source: String,
     intensity: Arc<AtomicF64>,
     bands: Arc<[AtomicF64; NUM_BANDS]>,
     flash: Arc<AtomicF64>,
     stop: Arc<AtomicBool>,
 ) {
     let host = cpal::default_host();
-    let Some(device) = host.default_output_device() else {
-        warn!("Reactive lighting: no default output device for loopback capture");
+    let Some(device) = find_capture_device(&host, &source) else {
+        warn!("Reactive lighting: no output device for loopback capture");
         return;
     };
 

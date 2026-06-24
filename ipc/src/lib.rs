@@ -14,9 +14,9 @@ use goxlr_types::{
     DisplayModeComponents, EchoStyle, EffectBankPresets, EncoderColourTargets, EqFrequencies,
     FaderDisplayStyle, FaderName, GateTimes, GenderStyle, HardTuneSource, HardTuneStyle,
     InputDevice, MegaphoneStyle, MicrophoneType, MiniEqFrequencies, Mix, MuteFunction, MuteState,
-    OutputDevice, PitchStyle, ReactiveMode, ReverbStyle, RobotRange, RobotStyle, SampleBank,
-    SampleButtons, SamplePlayOrder, SamplePlaybackMode, SamplerColourTargets, SimpleColourTargets,
-    VersionNumber, VodMode, WaterfallDirection,
+    OutputDevice, PitchStyle, ReactiveMode, ReactiveSettings, ReverbStyle, RobotRange, RobotStyle,
+    SampleBank, SampleButtons, SamplePlayOrder, SamplePlaybackMode, SamplerColourTargets,
+    SimpleColourTargets, VersionNumber, VodMode, WaterfallDirection,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,6 +194,7 @@ pub enum GoXLRCommand {
     // never persisted to the profile.
     SetReactiveLighting(bool),
     SetReactiveMode(ReactiveMode),
+    SetReactiveConfig(ReactiveSettings),
 
     SetFaderDisplayStyle(FaderName, FaderDisplayStyle),
     SetFaderColours(FaderName, String, String),

@@ -912,6 +912,32 @@ pub enum ReactiveMode {
     Level,
 }
 
+/// Above: tunable settings for reactive lighting (sent together as one config).
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ReactiveSettings {
+    /// Audio source to listen to: a GoXLR channel keyword ("System", "Game",
+    /// "Music", "Chat", "Broadcast") or "Default" for the default output device.
+    pub source: String,
+    /// Base colour as "RRGGBB" hex (used by Pulse/Level; tints the accent).
+    pub colour: String,
+    /// Overall brightness, 0..=100.
+    pub brightness: u8,
+    /// Response speed, 0..=100 (higher = snappier attack/release).
+    pub speed: u8,
+}
+
+impl Default for ReactiveSettings {
+    fn default() -> Self {
+        Self {
+            source: String::from("System"),
+            colour: String::from("B03636"),
+            brightness: 100,
+            speed: 50,
+        }
+    }
+}
+
 #[derive(Default, Debug, Copy, Clone, EnumIter, Display, PartialEq, Eq)]
 #[cfg_attr(feature = "clap", derive(ValueEnum))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

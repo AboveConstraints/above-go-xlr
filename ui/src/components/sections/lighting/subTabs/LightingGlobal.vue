@@ -34,6 +34,10 @@ export default {
       // DaemonStatus), so its state is tracked locally.
       reactive_enabled: false,
       reactive_mode: 'Spectrum',
+      reactive_source: 'System',
+      reactive_colour: 'B03636',
+      reactive_brightness: 100,
+      reactive_speed: 50,
     }
   },
 
@@ -58,6 +62,39 @@ export default {
     setReactiveMode(mode) {
       this.reactive_mode = mode;
       websocket.send_command(store.getActiveSerial(), {"SetReactiveMode": mode});
+    },
+
+    getReactiveSources() {
+      return [
+        { id: 'System', label: 'System' },
+        { id: 'Game', label: 'Game' },
+        { id: 'Music', label: 'Music' },
+        { id: 'Chat', label: 'Chat' },
+        { id: 'Broadcast', label: 'Broadcast' },
+        { id: 'Default', label: 'Default Out' },
+      ];
+    },
+
+    sendReactiveConfig() {
+      websocket.send_command(store.getActiveSerial(), {
+        "SetReactiveConfig": {
+          source: this.reactive_source,
+          colour: this.reactive_colour,
+          brightness: parseInt(this.reactive_brightness),
+          speed: parseInt(this.reactive_speed),
+        }
+      });
+    },
+
+    setReactiveSource(id) {
+      this.reactive_source = id;
+      this.sendReactiveConfig();
+    },
+
+    onReactiveColour(value) {
+      // ColourPicker emits "#RRGGBB"
+      this.reactive_colour = value.substr(1, 6);
+      this.sendReactiveConfig();
     },
 
     getAreaOptions() {
@@ -317,6 +354,17 @@ export default {
         <RadioSelection v-if="reactive_enabled" title="Mode" group="reactive_mode"
                         :options="getReactiveModes()" :selected="reactive_mode"
                         @selection-changed="setReactiveMode"/>
+        <RadioSelection v-if="reactive_enabled" title="Source" group="reactive_source"
+                        :options="getReactiveSources()" :selected="reactive_source"
+                        @selection-changed="setReactiveSource"/>
+        <ColourPicker v-if="reactive_enabled" title="Colour" :color-value="'#' + reactive_colour"
+                      @colour-changed="onReactiveColour"/>
+        <div v-if="reactive_enabled" class="reactive-sliders">
+          <label>Brightness: {{ reactive_brightness }}%</label>
+          <input type="range" min="0" max="100" v-model="reactive_brightness" @change="sendReactiveConfig"/>
+          <label>Speed: {{ reactive_speed }}</label>
+          <input type="range" min="0" max="100" v-model="reactive_speed" @change="sendReactiveConfig"/>
+        </div>
       </GroupContainer>
     </ContentContainer>
   </CenteredContainer>
@@ -368,6 +416,21 @@ export default {
   margin-top: 8px;
   font-size: 11px;
   color: var(--ag-text-dim);
+}
+
+.reactive-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  color: var(--ag-text);
+  font-size: 12px;
+}
+
+.reactive-sliders input[type="range"] {
+  width: 100%;
+  accent-color: var(--ag-accent);
+  margin-bottom: 6px;
 }
 
 .waterfall {
