@@ -51,8 +51,8 @@ use crate::audio::{AudioFile, AudioHandler};
 use crate::device::CurrentState;
 use crate::files::can_create_new_file;
 
-pub const DEFAULT_PROFILE_NAME: &str = "Default";
-const DEFAULT_PROFILE: &[u8] = include_bytes!("../profiles/Default.goxlr");
+pub const DEFAULT_PROFILE_NAME: &str = "Above";
+const DEFAULT_PROFILE: &[u8] = include_bytes!("../profiles/Above.goxlr");
 
 #[derive(Debug)]
 pub struct ProfileAdapter {
