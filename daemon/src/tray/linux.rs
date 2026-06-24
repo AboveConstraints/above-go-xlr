@@ -87,7 +87,7 @@ impl Tray for GoXLRTray {
     }
 
     fn title(&self) -> String {
-        String::from("GoXLR Utility")
+        String::from("GoXLR Above")
     }
 
     fn status(&self) -> Status {
@@ -111,7 +111,7 @@ impl Tray for GoXLRTray {
 
     fn tool_tip(&self) -> ToolTip {
         ToolTip {
-            title: String::from("GoXLR Utility"),
+            title: String::from("GoXLR Above"),
             description: String::from("A Tool for Configuring a GoXLR"),
             ..Default::default()
         }

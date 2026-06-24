@@ -44,7 +44,7 @@ pub fn create_startup_link() -> Result<()> {
             let mut conf = Ini::new();
             conf.with_section(Some("Desktop Entry"))
                 .set("Type", "Application")
-                .set("Name", "GoXLR Utility")
+                .set("Name", "GoXLR Above")
                 .set("Comment", "A Tool for Configuring a GoXLR")
                 .set("Path", parent.to_string_lossy())
                 .set("Exec", executable.to_string_lossy())

@@ -21,7 +21,7 @@ use winrt_toast_reborn::{Audio, Toast, ToastDuration, ToastManager};
 
 const GOXLR_APP_NAME: &str = "GoXLR App.exe";
 const GOXLR_BETA_APP_NAME: &str = "GoXLR Beta App.exe";
-const AUTOSTART_FILENAME: &str = "GoXLR Utility.lnk";
+const AUTOSTART_FILENAME: &str = "GoXLR Above.lnk";
 
 lazy_static! {
     static ref STARTUP_PATH: Option<PathBuf> = get_startup_dir();
@@ -43,7 +43,7 @@ pub fn perform_platform_preflight() -> Result<()> {
 
     if get_utility_count() > 1 {
         error!("Daemon Process already running, Failing Preflight");
-        bail!("The GoXLR Utility is already running, please stop it and try again.");
+        bail!("The GoXLR Above is already running, please stop it and try again.");
     }
 
     Ok(())
@@ -59,7 +59,7 @@ pub fn display_error(message: String) {
     let message = HSTRING::from(message);
 
     unsafe {
-        MessageBoxW(None, &message, w!("GoXLR Utility"), MB_OK | MB_ICONERROR);
+        MessageBoxW(None, &message, w!("GoXLR Above"), MB_OK | MB_ICONERROR);
     }
 }
 
@@ -143,7 +143,7 @@ fn throw_notification() {
     let manager = ToastManager::new(ToastManager::POWERSHELL_AUM_ID);
 
     let mut toast = Toast::new();
-    toast.text1("GoXLR Utility Daemon Terminated");
+    toast.text1("GoXLR Above Daemon Terminated");
     toast.text2("Please stop the official app before using the Utility");
     toast.audio(Audio::new(Sound::SMS));
     toast.duration(ToastDuration::Short);

@@ -20,7 +20,7 @@ pub fn display_error(message: String) {
     unsafe {
         let alert = NSAlert::new(mtm);
         alert.setIcon(get_icon().as_deref());
-        alert.setMessageText(&NSString::from_str("GoXLR Utility"));
+        alert.setMessageText(&NSString::from_str("GoXLR Above"));
         alert.setInformativeText(&NSString::from_str(&message));
         alert.setAlertStyle(NSAlertStyle::Critical);
 
