@@ -1,0 +1,10 @@
+{
+  "name": "above-goxlr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Root dev scripts for above-goxlr (delegates to PowerShell build scripts)",
+  "scripts": {
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./dev.ps1",
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./build-release.ps1"
+  }
+}
