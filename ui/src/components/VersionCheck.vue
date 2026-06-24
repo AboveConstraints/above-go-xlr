@@ -37,7 +37,8 @@ export default {
             return response.json()
           })
           .then(data => {
-            if (data === undefined) {
+            if (data === undefined || !Array.isArray(data) || data.length === 0) {
+              // No releases published on the Above repo yet — don't prompt.
               return;
             }
             fetch(data[0].url)
@@ -140,7 +141,8 @@ export default {
     },
 
     getPath() {
-      return "https://api.github.com/repos/GoXLR-on-Linux/goxlr-utility/releases";
+      // Above fork — check our own releases, not upstream goxlr-utility.
+      return "https://api.github.com/repos/AboveConstraints/above-go-xlr/releases";
     },
 
     isOutdated(base_version, match_version) {
