@@ -32,6 +32,10 @@ cfg_if! {
         pub fn display_error(message: String) {
             windows::display_error(message);
         }
+
+        pub fn is_official_app_running() -> bool {
+            windows::is_official_app_running()
+        }
     } else if #[cfg(target_os = "linux")] {
         mod linux;
         mod unix;
@@ -60,6 +64,11 @@ cfg_if! {
         pub fn display_error(message: String) {
             linux::display_error(message);
         }
+
+        pub fn is_official_app_running() -> bool {
+            // The official app is Windows/macOS only; never present on Linux.
+            false
+        }
     } else if #[cfg(target_os = "macos")] {
         mod macos;
 
@@ -82,6 +91,11 @@ cfg_if! {
          pub fn display_error(message: String) {
             macos::display_error(message);
          }
+
+        pub fn is_official_app_running() -> bool {
+            // TODO: detect GoXLR-MacOS / official app conflict on macOS.
+            false
+        }
     } else {
         use anyhow::bail;
 
@@ -102,6 +116,10 @@ cfg_if! {
         }
 
         pub fn display_error(message: String) {}
+
+        pub fn is_official_app_running() -> bool {
+            false
+        }
     }
 }
 

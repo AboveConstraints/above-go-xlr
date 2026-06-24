@@ -137,6 +137,11 @@ pub async fn spawn_usb_handler(
     .await;
 
     let mut shutdown_triggered = false;
+
+    // Tracks whether device acquisition is currently deferred because the official
+    // GoXLR Application holds the device. Used to log the transition only once.
+    let mut official_app_blocking = false;
+
     let _ = ready_tx.send(());
 
     loop {
@@ -233,7 +238,18 @@ pub async fn spawn_usb_handler(
                 }
             }
             () = &mut detection_sleep => {
-                if let Some(device) = find_new_device(&daemon_status, &ignore_list) {
+                // Defer claiming the device while the official GoXLR App owns it.
+                // The loop keeps polling, so we take over automatically once it closes.
+                let blocked_by_official_app = crate::platform::is_official_app_running();
+                if blocked_by_official_app && !official_app_blocking {
+                    warn!("Official GoXLR App is running; deferring device acquisition until it closes.");
+                    official_app_blocking = true;
+                } else if !blocked_by_official_app && official_app_blocking {
+                    info!("Official GoXLR App closed; resuming device acquisition.");
+                    official_app_blocking = false;
+                }
+
+                if !blocked_by_official_app && let Some(device) = find_new_device(&daemon_status, &ignore_list) {
                     let existing_serials: Vec<String> = get_all_serials(&devices);
                     let bus_number = device.bus_number();
                     let address = device.address();

@@ -2,7 +2,7 @@ use crate::DaemonState;
 use crate::events::EventTriggers;
 use anyhow::{Result, bail};
 use lazy_static::lazy_static;
-use log::{debug, error};
+use log::{debug, error, warn};
 use mslnk::ShellLink;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -33,11 +33,12 @@ pub fn perform_platform_preflight() -> Result<()> {
         bail!("The GoXLR Driver was not found, please install it and try again.");
     }
 
+    // NOTE: The official GoXLR Application running is no longer a fatal preflight
+    // failure. The daemon boots normally (serving the UI / tray) but defers
+    // acquiring the physical device until the official app releases it. The
+    // detection loop polls is_official_app_running() and takes over automatically.
     if get_official_app_count() > 0 {
-        error!("Detected Official GoXLR Application Running, Failing Preflight.");
-        bail!(
-            "The official GoXLR Application is currently running, Please close it before running the Utility"
-        );
+        warn!("Official GoXLR Application detected; deferring device acquisition until it closes.");
     }
 
     if get_utility_count() > 1 {
@@ -46,6 +47,12 @@ pub fn perform_platform_preflight() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Returns true while the official (stable or beta) GoXLR Application is running.
+/// While true, the daemon must NOT claim the USB device (hardware conflict).
+pub fn is_official_app_running() -> bool {
+    get_official_app_count() > 0
 }
 
 pub fn display_error(message: String) {
